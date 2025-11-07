@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.hybridtraqining.data.TrainingPlan
+import com.example.hybridtraqining.data.repository.TrainingRepositoryImpl
 import com.example.hybridtraqining.ui.screens.HomeScreen
 import com.example.hybridtraqining.ui.screens.TrainingCoachScreen
 import com.example.hybridtraqining.ui.theme.HybridTraqiningTheme
@@ -31,17 +33,25 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HybridTraqiningApp() {
-    var currentTrainingPlan by rememberSaveable { mutableStateOf<TrainingPlan?>(null) }
+    val repository = remember { TrainingRepositoryImpl() }
+    
+    // Save only the training plan name, not the entire object
+    var currentTrainingPlanName by rememberSaveable { mutableStateOf<String?>(null) }
+    
+    // Look up the training plan by name when restoring
+    val currentTrainingPlan = remember(currentTrainingPlanName) {
+        currentTrainingPlanName?.let { repository.getTrainingByName(it) }
+    }
 
     if (currentTrainingPlan != null) {
         TrainingCoachScreen(
-            trainingPlan = currentTrainingPlan!!,
-            onBack = { currentTrainingPlan = null }
+            trainingPlan = currentTrainingPlan,
+            onBack = { currentTrainingPlanName = null }
         )
     } else {
         HomeScreen(
             onStartTraining = { trainingPlan ->
-                currentTrainingPlan = trainingPlan
+                currentTrainingPlanName = trainingPlan.name
             },
             modifier = Modifier.fillMaxSize()
         )

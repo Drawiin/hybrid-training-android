@@ -18,6 +18,15 @@ class TrainingRepositoryImpl : TrainingRepository {
         }
     }
     
+    override fun getTrainingByName(name: String): TrainingPlan? {
+        return when (name) {
+            "Legs Training" -> legsTrainingPlan()
+            "Pull Training" -> pullTrainingPlan()
+            "Push Training" -> pushTrainingPlan()
+            else -> null
+        }
+    }
+    
     private fun legsTrainingPlan(): TrainingPlan {
         return TrainingPlan(
             name = "Legs Training",

@@ -1,5 +1,6 @@
 package com.example.hybridtraqining.ui.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import com.example.hybridtraqining.data.RepetitionExercise
 import com.example.hybridtraqining.data.TimeExercise
 import com.example.hybridtraqining.data.TrainingBlock
@@ -32,6 +33,10 @@ class TrainingCoachViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+    
+    private fun createViewModel(plan: TrainingPlan): TrainingCoachViewModel {
+        return TrainingCoachViewModel(plan, SavedStateHandle())
     }
     
     private fun createTestTrainingPlan(): TrainingPlan {
@@ -76,7 +81,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `initial state is correct`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         val state = viewModel.uiState.first()
         
@@ -91,7 +96,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `totalSets and totalBlocks are correct`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         assertEquals(3, viewModel.totalSets)
         assertEquals(2, viewModel.totalBlocks)
@@ -100,7 +105,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `currentSetNumber and currentBlockNumber are correct`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         assertEquals(1, viewModel.currentSetNumber)
         assertEquals(1, viewModel.currentBlockNumber)
@@ -110,7 +115,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `finishExercise moves to rest period for repetition exercise`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         viewModel.finishExercise()
         
@@ -123,7 +128,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `finishExercise cannot be called for time exercise before timer completes`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         // Move to second set (time exercise)
         viewModel.finishExercise() // Finish first set
@@ -146,7 +151,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `startExerciseTimer starts timer for time exercise`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         // Move to second set (time exercise) using skipRest to avoid timing issues
         viewModel.finishExercise() // Finish first set
@@ -167,7 +172,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `skipRest moves to next set`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         viewModel.finishExercise() // Start rest
         
@@ -186,7 +191,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `rest timer automatically moves to next set when complete`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         // Finish first exercise to start rest
         viewModel.finishExercise()
@@ -217,7 +222,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `completing all sets marks training as completed`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         // Complete first set
         viewModel.finishExercise()
@@ -244,7 +249,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `currentSet returns correct set`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         val firstSet = viewModel.currentSet
         assertNotNull(firstSet)
@@ -255,7 +260,7 @@ class TrainingCoachViewModelTest {
     @Test
     fun `currentBlockName updates correctly when moving between blocks`() = runTest(testDispatcher) {
         val plan = createTestTrainingPlan()
-        val viewModel = TrainingCoachViewModel(plan)
+        val viewModel = createViewModel(plan)
         
         assertEquals("Block 1", viewModel.currentBlockName)
         

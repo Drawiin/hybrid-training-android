@@ -1,5 +1,6 @@
 package com.example.hybridtraqining.ui.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.hybridtraqining.data.TimeExercise
@@ -22,7 +23,8 @@ data class TrainingCoachUiState(
 )
 
 class TrainingCoachViewModel(
-    private val trainingPlan: TrainingPlan
+    private val trainingPlan: TrainingPlan,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
     // Flatten all sets with their block and set indices
@@ -32,13 +34,33 @@ class TrainingCoachViewModel(
         }
     }
     
+    // Restore state from SavedStateHandle or use defaults
     private val _uiState = MutableStateFlow(
         TrainingCoachUiState(
-            exerciseTimeRemaining = (allSets.firstOrNull()?.third?.exercise as? TimeExercise)?.durationSeconds ?: 0,
-            restTimeRemaining = allSets.firstOrNull()?.third?.restTimeSeconds ?: 0
+            currentSetIndex = savedStateHandle.get<Int>("currentSetIndex") ?: 0,
+            isResting = savedStateHandle.get<Boolean>("isResting") ?: false,
+            isExerciseTimerRunning = false, // Always reset to false on restore (timers are not restored)
+            exerciseTimeRemaining = savedStateHandle.get<Int>("exerciseTimeRemaining") 
+                ?: (allSets.firstOrNull()?.third?.exercise as? TimeExercise)?.durationSeconds ?: 0,
+            restTimeRemaining = savedStateHandle.get<Int>("restTimeRemaining") 
+                ?: allSets.firstOrNull()?.third?.restTimeSeconds ?: 0,
+            isCompleted = savedStateHandle.get<Boolean>("isCompleted") ?: false
         )
     )
     val uiState: StateFlow<TrainingCoachUiState> = _uiState.asStateFlow()
+    
+    init {
+        // Save state whenever it changes
+        viewModelScope.launch {
+            _uiState.collect { state ->
+                savedStateHandle["currentSetIndex"] = state.currentSetIndex
+                savedStateHandle["isResting"] = state.isResting
+                savedStateHandle["exerciseTimeRemaining"] = state.exerciseTimeRemaining
+                savedStateHandle["restTimeRemaining"] = state.restTimeRemaining
+                savedStateHandle["isCompleted"] = state.isCompleted
+            }
+        }
+    }
     
     private var exerciseTimerJob: Job? = null
     private var restTimerJob: Job? = null
@@ -75,6 +97,36 @@ class TrainingCoachViewModel(
     val totalBlocks: Int
         get() = trainingPlan.blocks.size
     
+    // Current series number for the current exercise within the current block
+    val currentExerciseSeriesNumber: Int
+        get() {
+            val currentTriple = currentSetTriple ?: return 0
+            val currentBlockIndex = currentTriple.first
+            val currentSetIndex = currentTriple.second
+            val currentExerciseName = currentTriple.third.exercise.name
+            
+            val currentBlock = trainingPlan.blocks.getOrNull(currentBlockIndex) ?: return 0
+            
+            // Find which occurrence this is (1-based) by counting exercises with same name up to current set index
+            var seriesCount = 0
+            for (i in 0..currentSetIndex) {
+                if (currentBlock.sets.getOrNull(i)?.exercise?.name == currentExerciseName) {
+                    seriesCount++
+                }
+            }
+            return seriesCount
+        }
+    
+    // Total number of series for the current exercise within the current block
+    val totalExerciseSeries: Int
+        get() {
+            val currentTriple = currentSetTriple ?: return 0
+            val currentBlockIndex = currentTriple.first
+            val currentExerciseName = currentTriple.third.exercise.name
+            
+            val currentBlock = trainingPlan.blocks.getOrNull(currentBlockIndex) ?: return 0
+            return currentBlock.sets.count { it.exercise.name == currentExerciseName }
+        }
     
     fun startExerciseTimer() {
         val currentState = _uiState.value
@@ -160,6 +212,50 @@ class TrainingCoachViewModel(
         )
         
         startRestTimer()
+    }
+    
+    fun skipBlock() {
+        val currentTriple = currentSetTriple ?: return
+        val currentBlockIndex = currentTriple.first
+        
+        // Find the last set index in the current block
+        val lastSetInBlockIndex = allSets.indexOfLast { it.first == currentBlockIndex }
+        
+        if (lastSetInBlockIndex < 0) return
+        
+        // Cancel any running timers
+        exerciseTimerJob?.cancel()
+        restTimerJob?.cancel()
+        
+        // Move to the first set of the next block (or complete if it's the last block)
+        val nextBlockIndex = currentBlockIndex + 1
+        
+        if (nextBlockIndex < trainingPlan.blocks.size) {
+            // Find the first set of the next block
+            val nextSetIndex = allSets.indexOfFirst { it.first == nextBlockIndex }
+            
+            if (nextSetIndex >= 0) {
+                val nextSetTriple = allSets[nextSetIndex]
+                val nextSet = nextSetTriple.third
+                val nextExerciseDuration = (nextSet.exercise as? TimeExercise)?.durationSeconds ?: 0
+                originalExerciseDuration = nextExerciseDuration
+                
+                _uiState.value = _uiState.value.copy(
+                    currentSetIndex = nextSetIndex,
+                    exerciseTimeRemaining = nextExerciseDuration,
+                    restTimeRemaining = nextSet.restTimeSeconds,
+                    isResting = false,
+                    isExerciseTimerRunning = false
+                )
+            }
+        } else {
+            // Last block was skipped, complete the training
+            _uiState.value = _uiState.value.copy(
+                isCompleted = true,
+                isResting = false,
+                isExerciseTimerRunning = false
+            )
+        }
     }
     
     private fun startRestTimer() {
