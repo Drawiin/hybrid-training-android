@@ -23,10 +23,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +56,7 @@ import com.example.hybridtraqining.data.TimeExercise
 import com.example.hybridtraqining.data.TrainingPlan
 import com.example.hybridtraqining.ui.viewmodel.TrainingCoachViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrainingCoachScreen(
     trainingPlan: TrainingPlan,
@@ -69,12 +73,15 @@ fun TrainingCoachScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val activity = context as? ComponentActivity
+    var showOverview by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
-    // Keep screen on during active training (when exercise timer is running)
-    // Allow screen to turn off during rest periods or when paused
-    LaunchedEffect(uiState.isExerciseTimerRunning) {
+    // Keep screen on during active training (any exercise, not just when timer is running)
+    // Allow screen to turn off during rest periods or when training is completed
+    val shouldKeepScreenOn = !uiState.isResting && !uiState.isCompleted
+    LaunchedEffect(shouldKeepScreenOn) {
         activity?.window?.let { window ->
-            if (uiState.isExerciseTimerRunning) {
+            if (shouldKeepScreenOn) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             } else {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -103,6 +110,19 @@ fun TrainingCoachScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Overview button at the top
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(
+                        onClick = { showOverview = true },
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Text("View Overview")
+                    }
+                }
+                
                 // Progress indicator
                 Text(
                     text = "Block ${viewModel.currentBlockNumber} of ${viewModel.totalBlocks}",
@@ -195,6 +215,22 @@ fun TrainingCoachScreen(
                     }
                 }
             }
+        }
+    }
+    
+    // Training Overview Modal
+    if (showOverview) {
+        ModalBottomSheet(
+            onDismissRequest = { showOverview = false },
+            sheetState = sheetState
+        ) {
+            TrainingOverviewScreen(
+                trainingOverview = viewModel.getTrainingOverview(),
+                onDismiss = { showOverview = false },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(600.dp)
+            )
         }
     }
 }

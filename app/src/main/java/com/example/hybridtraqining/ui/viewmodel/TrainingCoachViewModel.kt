@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.hybridtraqining.data.TimeExercise
+import com.example.hybridtraqining.data.TrainingOverview
 import com.example.hybridtraqining.data.TrainingPlan
 import com.example.hybridtraqining.data.TrainingSet
 import kotlinx.coroutines.Job
@@ -96,6 +97,49 @@ class TrainingCoachViewModel(
     
     val totalBlocks: Int
         get() = trainingPlan.blocks.size
+    
+    /**
+     * Get completed sets based on current progress
+     * A set is considered completed if we've moved past it (currentSetIndex > setIndex)
+     */
+    fun getCompletedSets(): Set<TrainingOverview.SetIdentifier> {
+        val currentIndex = _uiState.value.currentSetIndex
+        val completedSets = mutableSetOf<TrainingOverview.SetIdentifier>()
+        
+        // All sets before the current one are completed
+        for (i in 0 until currentIndex) {
+            val triple = allSets.getOrNull(i) ?: continue
+            completedSets.add(
+                TrainingOverview.SetIdentifier(
+                    blockIndex = triple.first,
+                    setIndex = triple.second
+                )
+            )
+        }
+        
+        // If training is completed, mark all sets as completed
+        if (_uiState.value.isCompleted) {
+            trainingPlan.blocks.forEachIndexed { blockIndex, block ->
+                block.sets.indices.forEach { setIndex ->
+                    completedSets.add(
+                        TrainingOverview.SetIdentifier(blockIndex, setIndex)
+                    )
+                }
+            }
+        }
+        
+        return completedSets
+    }
+    
+    /**
+     * Get TrainingOverview with current completion status
+     */
+    fun getTrainingOverview(): TrainingOverview {
+        return TrainingOverview(
+            trainingPlan = trainingPlan,
+            completedSets = getCompletedSets()
+        )
+    }
     
     // Current series number for the current exercise within the current block
     val currentExerciseSeriesNumber: Int
